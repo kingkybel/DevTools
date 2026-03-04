@@ -6,10 +6,10 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 BASE_IMAGE="ubuntu:24.04"
 COMPILER_FAMILY="g++"
-COMPILER_VERSION=""
+COMPILER_VERSION="14"
 PORT="8080"
 CMAKE_ROOT=""
-BUILD_TYPE="Debug"
+BUILD_TYPE="Coverage"
 COVERAGE_TOOL="auto"
 
 usage() {

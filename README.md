@@ -1,3 +1,5 @@
+![Directed Graphs](assets/banners/devtools-banner.svg)
+
 # DevTools: C++ Docker Tools
 
 This repository provides Dockerized C++ development helpers that:
@@ -7,6 +9,7 @@ This repository provides Dockerized C++ development helpers that:
 4. Serves coverage on localhost (default `8080`) with a tabbed dashboard.
 5. Runs SonarQube static analysis and shows results on localhost (default `9000`).
 6. Runs valgrind/cachegrind/callgrind in Docker and serves a tabbed localhost dashboard.
+7. Runs CPU profiling with `perf` in Docker and serves a localhost dashboard with flamegraph/report tabs.
 
 ## Requirements
 
@@ -67,11 +70,20 @@ Useful options:
 - `-k, --project-key <key>`: Sonar project key
 - `-n, --project-name <name>`: Sonar project name
 - `--project-version <version>`: project version string
-- `--sonar-token <token>`: auth token (or set `SONAR_TOKEN`)
+- `--sonar-token <token>`: auth token (or set `SONAR_TOKEN`; on SonarQube 9.9 this is sent as `sonar.login`)
+- `--sonar-login <user>`: auth login/user (or set `SONAR_LOGIN`)
+- `--sonar-password <pass>`: auth password (or set `SONAR_PASSWORD`)
 - `--compile-commands <path>`: `compile_commands.json` (for C/C++ analyzer support)
 - `--sonar-image <image>`: override image tag (default now `sonarqube:community`)
 - `--start-only`: start SonarQube only
 - `--stop`: stop/remove SonarQube container for the selected port
+
+If no auth options are provided, the script tries local default credentials `admin/admin`.
+If neither flags nor env auth is provided, the script also checks `sonar.token` or `sonar.login` + `sonar.password` files in `--source-root`.
+
+Notes:
+- `sonarqube:community` does not include the Sonar CFamily analyzer, so C/C++ rules will not run there.
+- For C/C++ static analysis, use a SonarQube edition/plugin that provides CFamily and pass `--compile-commands`.
 
 Examples:
 
@@ -94,6 +106,21 @@ Examples:
 SonarQube URLs:
 - Home: `http://localhost:<port>`
 - Project dashboard: `http://localhost:<port>/dashboard?id=<project-key>`
+
+## SonarQube Cloud for C++
+
+For GitHub C++ repositories, use SonarQube Cloud with CI-based analysis (CFamily).
+
+Template workflow:
+- `templates/github-actions/sonarcloud-cpp.yml`
+
+Setup per repo:
+1. Copy template to `.github/workflows/sonarcloud-cpp.yml`
+2. In GitHub repo settings, add secret: `SONAR_TOKEN`
+3. In GitHub repo settings, add variables:
+   - `SONAR_ORG` (your SonarQube Cloud organization key)
+   - `SONAR_PROJECT_KEY` (your SonarQube Cloud project key)
+4. Push to `main/master` or open a PR to trigger analysis
 
 ## Grind Analysis Dashboard
 
@@ -126,3 +153,36 @@ Examples:
 
 Grind dashboard URL:
 - `http://localhost:<port>/index.html`
+
+## CPU Profiler Dashboard
+
+Run `perf` profiling on an executable and open a localhost dashboard:
+
+```bash
+./tools/run-cpp-profiler.sh --executable ../FixDecoder/build/Debug/bin/run_tests
+```
+
+Options:
+- `-e, --executable <path>`: executable to run (required)
+- `-s, --source-root <path>`: source tree context (default current directory)
+- `-w, --workdir <path>`: runtime working directory for executable (default current directory)
+- `-p, --port <port>`: web dashboard port (default `8060`)
+- `-f, --frequency <hz>`: perf sample frequency (default `99`)
+- `-- <exe args...>`: pass remaining args to the executable
+
+Examples:
+
+```bash
+# profile test binary with defaults
+./tools/run-cpp-profiler.sh -e ../FixDecoder/build/Debug/bin/run_tests
+
+# custom sample frequency and executable args
+./tools/run-cpp-profiler.sh -e ./build/my_app -f 199 -- --scenario perf --size 1000
+```
+
+Profiler dashboard URL:
+- `http://localhost:<port>/index.html`
+
+Note:
+- This tool uses Linux `perf` from inside Docker and starts the container with added capabilities (`SYS_ADMIN`, `SYS_PTRACE`) plus `seccomp=unconfined`.
+- Some host environments still restrict perf events (`perf_event_paranoid`); if profiling fails, check diagnostics in the dashboard overview tab.

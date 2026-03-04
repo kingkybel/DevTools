@@ -1,0 +1,52 @@
+name: SonarQube Cloud C++
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  sonar:
+    runs-on: ubuntu-latest
+    env:
+      BUILD_DIR: build
+      BUILD_TYPE: Release
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake ninja-build curl unzip
+
+      - name: Install Sonar build-wrapper
+        run: |
+          curl -sSLo build-wrapper.zip https://sonarcloud.io/static/cpp/build-wrapper-linux-x86.zip
+          unzip -q build-wrapper.zip
+          echo "${PWD}/build-wrapper-linux-x86" >> "$GITHUB_PATH"
+
+      - name: Configure CMake
+        run: |
+          cmake -S . -B "${BUILD_DIR}" -G Ninja -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
+      - name: Build (captured by build-wrapper)
+        run: |
+          build-wrapper-linux-x86-64 --out-dir bw-output cmake --build "${BUILD_DIR}" --parallel
+
+      - name: Sonar scan
+        uses: SonarSource/sonarqube-scan-action@v5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.organization=${{ vars.SONAR_ORG }}
+            -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
+            -Dsonar.sources=.
+            -Dsonar.cfamily.build-wrapper-output=bw-output
